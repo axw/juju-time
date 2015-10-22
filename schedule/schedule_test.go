@@ -105,6 +105,31 @@ func (*scheduleSuite) TestRemoveKeyNotFound(c *gc.C) {
 	s.Remove("0") // does not explode
 }
 
+func (*scheduleSuite) TestExponentialBackoff(c *gc.C) {
+	clock := coretesting.NewClock(time.Time{})
+	now := clock.Now()
+	s := schedule.NewSchedule(clock)
+	op := &exponentialBackoffOperation{key: "key"}
+
+	expectedTimes := []time.Time{
+		now,
+		now.Add(30 * time.Second),
+		now.Add(1 * time.Minute),
+		now.Add(2 * time.Minute),
+		now.Add(4 * time.Minute),
+		now.Add(8 * time.Minute),
+		now.Add(16 * time.Minute),
+		now.Add(30 * time.Minute), // truncated
+		now.Add(30 * time.Minute),
+	}
+	for i, expected := range expectedTimes {
+		c.Logf("%d: expect %s", i, expected)
+		t := s.Add(op)
+		c.Assert(t, gc.DeepEquals, expected)
+		s.Remove(op.Key())
+	}
+}
+
 type operation struct {
 	key   string
 	value string
@@ -117,6 +142,15 @@ func (o operation) Key() interface{} {
 
 func (o operation) Delay() time.Duration {
 	return o.delay
+}
+
+type exponentialBackoffOperation struct {
+	schedule.ExponentialBackoff
+	key string
+}
+
+func (o *exponentialBackoffOperation) Key() interface{} {
+	return o.key
 }
 
 func assertNextOp(c *gc.C, s *schedule.Schedule, clock *coretesting.Clock, d time.Duration) {

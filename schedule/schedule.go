@@ -62,11 +62,14 @@ func (s *Schedule) Ready(now time.Time) []Operation {
 }
 
 // Add adds an operation with the specified value, with the corresponding key
-// and time to the schedule. Add will panic if there already exists an operation
-// with the same key.
-func (s *Schedule) Add(op Operation) {
+// and time to the schedule, and returns the time for which the operation is
+// scheduled. Add will panic if there already exists an operation with the same
+// key.
+func (s *Schedule) Add(op Operation) time.Time {
 	key, delay := op.Key(), op.Delay()
-	s.q.Add(key, op, s.time.Now().Add(delay))
+	when := s.time.Now().Add(delay)
+	s.q.Add(key, op, when)
+	return when
 }
 
 // Remove removes the operation corresponding to the specified key from the
